@@ -290,7 +290,7 @@ export const loginUser = async (req, res, next) => {
       });
     }
 
-    if (user.isEmailVerified === false) {
+    if (user.role !== 'admin' && user.isEmailVerified === false) {
       return res.status(401).json({
         success: false,
         isEmailVerified: false,

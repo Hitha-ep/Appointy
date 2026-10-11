@@ -35,6 +35,7 @@ const seedData = async () => {
     password: 'admin123',
     role: 'admin',
     phone: '9000000000',
+    isEmailVerified: true,
   });
   console.log('Admin created: admin@appointy.com / admin123');
 
@@ -275,6 +276,7 @@ const seedData = async () => {
       password: docData.password,
       phone: docData.phone,
       role: 'doctor',
+      isEmailVerified: true,
     });
 
     const doctor = await Doctor.create({
