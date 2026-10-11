@@ -6,6 +6,8 @@ import cors from 'cors';
 import connectDB from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
 
+import fs from 'fs';
+import compression from 'compression';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -21,6 +23,8 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// High performance gzip compression for mobile and desktop
+app.use(compression());
 
 app.use(
   cors({
@@ -31,16 +35,13 @@ app.use(
   })
 );
 
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Appointy API is running', timestamp: new Date() });
 });
-
 
 app.use('/api/auth', authRoutes);
 app.use('/api/doctors', doctorRoutes);
@@ -49,10 +50,20 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
 
-// Serve frontend static build in production
-if (process.env.NODE_ENV === 'production') {
-  const clientDist = path.join(__dirname, '../client/dist');
-  app.use(express.static(clientDist));
+// Serve frontend static build with gzip and cache-control
+const clientDist = path.join(__dirname, '../client/dist');
+if (process.env.NODE_ENV === 'production' || fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist, {
+    maxAge: '7d',
+    etag: true,
+    setHeaders: (res, filePath) => {
+      // HTML is never cached so new builds load immediately
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    },
+  }));
+
   app.get('*', (req, res, next) => {
     if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/uploads')) {
       return next();

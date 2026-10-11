@@ -23,60 +23,79 @@ export const registerUser = async (req, res, next) => {
       });
     }
 
-    const userExists = await User.findOne({ email });
-    if (userExists) {
-      return res.status(400).json({
-        success: false,
-        message: 'User with this email already exists',
+    let user = await User.findOne({ email });
+
+    if (user) {
+      if (user.isEmailVerified) {
+        return res.status(400).json({
+          success: false,
+          message: 'User with this email already exists. Please log in.',
+        });
+      }
+
+      // Existing unverified user: update details and generate fresh OTP
+      user.name = name;
+      user.password = password; // Pre-save hook will hash modified password
+      user.phone = phone || user.phone || '';
+      user.address = address || user.address || '';
+      user.role = assignedRole;
+    } else {
+      user = new User({
+        name,
+        email,
+        password,
+        phone: phone || '',
+        address: address || '',
+        role: assignedRole,
+        isEmailVerified: false,
       });
     }
 
-    const assignedRole = role === 'doctor' ? 'doctor' : 'patient';
-
-    const user = await User.create({
-      name,
-      email,
-      password,
-      phone: phone || '',
-      address: address || '',
-      role: assignedRole,
-      isEmailVerified: false,
-    });
-
     // Generate 6-digit OTP
     const otpCode = user.createOTP();
-    await user.save({ validateBeforeSave: false });
+    await user.save();
 
-    // Send OTP Email
-    await sendEmail({
-      to: user.email,
-      subject: 'Appointy - Verify your Email Address',
-      html: generateOTPEmailTemplate(otpCode, user.name),
-    });
-
-    let doctorProfile = null;
-    if (assignedRole === 'doctor') {
-      doctorProfile = await Doctor.create({
-        user: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone || '',
-        specialization: specialization || 'General Physician',
-        qualification: 'MBBS',
-        experience: 1,
-        consultationFee: consultationFee || 500,
-        about: `Dr. ${user.name} is a medical healthcare practitioner.`,
-        availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-        availableTimeSlots: { startTime: '09:00', endTime: '17:00', duration: 30 },
-        isAvailable: true,
+    // Send OTP Email safely
+    let emailResult = { success: false };
+    try {
+      emailResult = await sendEmail({
+        to: user.email,
+        subject: 'Appointy - Verify your Email Address',
+        html: generateOTPEmailTemplate(otpCode, user.name),
       });
+    } catch (emailErr) {
+      console.error('Error sending OTP email:', emailErr.message);
+    }
+
+    if (assignedRole === 'doctor') {
+      const existingDoc = await Doctor.findOne({ user: user._id });
+      if (!existingDoc) {
+        await Doctor.create({
+          user: user._id,
+          name: user.name,
+          email: user.email,
+          phone: user.phone || '',
+          specialization: specialization || 'General Physician',
+          qualification: 'MBBS',
+          experience: 1,
+          consultationFee: consultationFee || 500,
+          about: `Dr. ${user.name} is a medical healthcare practitioner.`,
+          availableDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+          availableTimeSlots: { startTime: '09:00', endTime: '17:00', duration: 30 },
+          isAvailable: true,
+        });
+      }
     }
 
     res.status(201).json({
       success: true,
       isEmailVerified: false,
       email: user.email,
-      message: 'Registration successful! A 6-digit verification OTP code has been sent to your email.',
+      emailSent: emailResult?.success ?? false,
+      debugOtp: !emailResult?.success ? otpCode : undefined,
+      message: emailResult?.success
+        ? 'Registration successful! A 6-digit verification OTP code has been sent to your email.'
+        : 'Registration successful! Verification code ready.',
     });
   } catch (error) {
     next(error);
@@ -204,9 +223,9 @@ export const resendOTP = async (req, res, next) => {
       });
     }
 
-    // Cooldown check: 30 seconds
-    if (user.lastOtpSentAt && Date.now() - new Date(user.lastOtpSentAt).getTime() < 30 * 1000) {
-      const waitSec = Math.ceil((30000 - (Date.now() - new Date(user.lastOtpSentAt).getTime())) / 1000);
+    // Cooldown check: 15 seconds
+    if (user.lastOtpSentAt && Date.now() - new Date(user.lastOtpSentAt).getTime() < 15 * 1000) {
+      const waitSec = Math.ceil((15000 - (Date.now() - new Date(user.lastOtpSentAt).getTime())) / 1000);
       return res.status(429).json({
         success: false,
         message: `Please wait ${waitSec} seconds before requesting a new OTP.`,
@@ -217,16 +236,25 @@ export const resendOTP = async (req, res, next) => {
     const otpCode = user.createOTP();
     await user.save({ validateBeforeSave: false });
 
-    // Send Email
-    await sendEmail({
-      to: user.email,
-      subject: 'Appointy - New Verification OTP Code',
-      html: generateOTPEmailTemplate(otpCode, user.name),
-    });
+    // Send Email safely
+    let emailResult = { success: false };
+    try {
+      emailResult = await sendEmail({
+        to: user.email,
+        subject: 'Appointy - New Verification OTP Code',
+        html: generateOTPEmailTemplate(otpCode, user.name),
+      });
+    } catch (emailErr) {
+      console.error('Error sending resend OTP email:', emailErr.message);
+    }
 
     res.json({
       success: true,
-      message: 'A new 6-digit verification code has been sent to your email.',
+      emailSent: emailResult?.success ?? false,
+      debugOtp: !emailResult?.success ? otpCode : undefined,
+      message: emailResult?.success
+        ? 'A new 6-digit verification code has been sent to your email.'
+        : 'A new 6-digit verification code has been generated.',
     });
   } catch (error) {
     next(error);

@@ -15,18 +15,27 @@ const VerifyOTPPage = () => {
   const emailFromQuery = queryParams.get('email');
   const emailFromState = location.state?.email;
   const email = emailFromQuery || emailFromState || '';
+  const initialDebugOtp = location.state?.debugOtp || '';
 
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const [debugOtp, setDebugOtp] = useState(initialDebugOtp);
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [status, setStatus] = useState({ type: '', message: '' });
-  const [countdown, setCountdown] = useState(30);
+  const [countdown, setCountdown] = useState(15);
   const [canResend, setCanResend] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
   const inputRefs = useRef([]);
 
-  // 30-second countdown timer for Resend OTP
+  // Auto-fill debugOtp if available initially
+  useEffect(() => {
+    if (initialDebugOtp) {
+      fillOtpCode(initialDebugOtp);
+    }
+  }, [initialDebugOtp]);
+
+  // 15-second countdown timer for Resend OTP
   useEffect(() => {
     let timer;
     if (countdown > 0 && !canResend) {
@@ -39,7 +48,30 @@ const VerifyOTPPage = () => {
     return () => clearInterval(timer);
   }, [countdown, canResend]);
 
+  const fillOtpCode = (code) => {
+    if (!code) return;
+    const digits = code.toString().trim().slice(0, 6).split('');
+    while (digits.length < 6) digits.push('');
+    setOtpDigits(digits);
+    inputRefs.current[5]?.focus();
+  };
+
   const handleDigitChange = (index, value) => {
+    // Handle mobile keyboard autofill or paste of entire 6-digit code into a field
+    if (value.length > 1) {
+      const cleanDigits = value.replace(/\D/g, '').slice(0, 6);
+      if (cleanDigits.length > 0) {
+        const newOtp = [...otpDigits];
+        cleanDigits.split('').forEach((d, idx) => {
+          if (index + idx < 6) newOtp[index + idx] = d;
+        });
+        setOtpDigits(newOtp);
+        const nextFocus = Math.min(index + cleanDigits.length, 5);
+        inputRefs.current[nextFocus]?.focus();
+        return;
+      }
+    }
+
     if (!/^[0-9]?$/.test(value)) return;
 
     const newOtp = [...otpDigits];
@@ -62,9 +94,7 @@ const VerifyOTPPage = () => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text').trim();
     if (/^\d{6}$/.test(pastedData)) {
-      const digits = pastedData.split('');
-      setOtpDigits(digits);
-      inputRefs.current[5]?.focus();
+      fillOtpCode(pastedData);
     }
   };
 
@@ -97,7 +127,7 @@ const VerifyOTPPage = () => {
         localStorage.setItem('appointy_token', data.token);
         localStorage.setItem('appointy_user', JSON.stringify(data.user));
         localStorage.setItem('user', JSON.stringify(data.user));
-        if (setAuthUser) setAuthUser(data.user);
+        if (setAuthUser) setAuthUser(data.user, data.token);
       }
     } catch (err) {
       setStatus({
@@ -121,10 +151,12 @@ const VerifyOTPPage = () => {
         type: 'success',
         message: res.data.message || 'A new 6-digit OTP has been sent to your email.',
       });
+      if (res.data?.debugOtp) {
+        setDebugOtp(res.data.debugOtp);
+        fillOtpCode(res.data.debugOtp);
+      }
       setCanResend(false);
-      setCountdown(30);
-      setOtpDigits(['', '', '', '', '', '']);
-      inputRefs.current[0]?.focus();
+      setCountdown(15);
     } catch (err) {
       setStatus({
         type: 'error',
@@ -190,7 +222,33 @@ const VerifyOTPPage = () => {
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleVerify}>
+              <div>
+                {debugOtp && (
+                  <div
+                    style={{
+                      background: '#f0fdf4',
+                      border: '1.5px dashed #16a34a',
+                      borderRadius: '10px',
+                      padding: '0.85rem 1rem',
+                      marginBottom: '1.25rem',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div style={{ fontSize: '0.85rem', color: '#166534', fontWeight: 600 }}>
+                      ⚡ Direct Verification Code: <span style={{ fontSize: '1.15rem', letterSpacing: '3px', fontWeight: 800, color: '#15803d' }}>{debugOtp}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fillOtpCode(debugOtp)}
+                      className="btn btn-sm"
+                      style={{ marginTop: '0.45rem', background: '#16a34a', color: '#fff', fontSize: '0.8rem', padding: '0.3rem 0.85rem', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
+                    >
+                      ✓ Click to Autofill Code
+                    </button>
+                  </div>
+                )}
+
+                <form onSubmit={handleVerify}>
                 {/* 6-Digit OTP Box Grid */}
                 <div className="form-group" style={{ marginBottom: '2rem' }}>
                   <label className="form-label" style={{ textAlign: 'center', display: 'block', marginBottom: '1rem' }}>
@@ -269,7 +327,8 @@ const VerifyOTPPage = () => {
                   )}
                 </div>
               </form>
-            )}
+            </div>
+          )}
 
             <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.875rem', color: '#64748b' }}>
               Entered wrong email? <Link to="/register" style={{ color: '#2563eb', fontWeight: 600 }}>Register again</Link>

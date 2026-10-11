@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/public/Home.jsx';
 import DoctorsPage from './pages/public/DoctorsPage.jsx';
@@ -12,18 +12,20 @@ import VerifyOTPPage from './pages/auth/VerifyOTPPage.jsx';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage.jsx';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage.jsx';
 
-import BookAppointmentPage from './pages/patient/BookAppointmentPage.jsx';
-import MyAppointmentsPage from './pages/patient/MyAppointmentsPage.jsx';
-import PatientDashboard from './pages/patient/PatientDashboard.jsx';
-
-import DoctorDashboard from './pages/doctor/DoctorDashboard.jsx';
-import AdminDashboard from './pages/admin/AdminDashboard.jsx';
-
+import LoadingSpinner from './components/LoadingSpinner.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
+
+// Code split heavy dashboard bundles for fast initial mobile page load
+const PatientDashboard = lazy(() => import('./pages/patient/PatientDashboard.jsx'));
+const BookAppointmentPage = lazy(() => import('./pages/patient/BookAppointmentPage.jsx'));
+const MyAppointmentsPage = lazy(() => import('./pages/patient/MyAppointmentsPage.jsx'));
+const DoctorDashboard = lazy(() => import('./pages/doctor/DoctorDashboard.jsx'));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard.jsx'));
 
 const App = () => {
   return (
-    <Routes>
+    <Suspense fallback={<LoadingSpinner fullPage text="Loading Appointy..." />}>
+      <Routes>
       {/* Public Routes */}
       <Route path="/" element={<Home />} />
       <Route path="/doctors" element={<DoctorsPage />} />
@@ -85,6 +87,7 @@ const App = () => {
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 };
 

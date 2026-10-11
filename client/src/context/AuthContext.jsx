@@ -4,9 +4,23 @@ import axios from 'axios';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('appointy_token') || localStorage.getItem('token'));
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('appointy_user') || localStorage.getItem('user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [token, setToken] = useState(() => localStorage.getItem('appointy_token') || localStorage.getItem('token'));
+  
+  // If we already have saved user, don't show full-page loading spinner on mobile
+  const [loading, setLoading] = useState(() => {
+    const storedToken = localStorage.getItem('appointy_token') || localStorage.getItem('token');
+    const storedUser = localStorage.getItem('appointy_user') || localStorage.getItem('user');
+    return !!(storedToken && !storedUser);
+  });
 
   const persistAuth = (authToken, authUser) => {
     if (authToken) {
@@ -26,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Load user on mount / token change
+  // Load user on mount / token change in background
   useEffect(() => {
     const loadUser = async () => {
       const storedToken = localStorage.getItem('appointy_token') || localStorage.getItem('token');
@@ -37,6 +51,7 @@ export const AuthProvider = ({ children }) => {
       try {
         const res = await axios.get('/api/auth/me', {
           headers: { Authorization: `Bearer ${storedToken}` },
+          timeout: 8000,
         });
         if (res.data.success) {
           setUser(res.data.user);
@@ -47,10 +62,13 @@ export const AuthProvider = ({ children }) => {
           setToken(null);
           setUser(null);
         }
-      } catch {
-        persistAuth(null, null);
-        setToken(null);
-        setUser(null);
+      } catch (err) {
+        // If 401 unauthorized, clear auth. If timeout/network error, preserve offline state
+        if (err.response?.status === 401) {
+          persistAuth(null, null);
+          setToken(null);
+          setUser(null);
+        }
       } finally {
         setLoading(false);
       }
@@ -78,8 +96,22 @@ export const AuthProvider = ({ children }) => {
     throw new Error(res.data.message || 'Registration failed');
   };
 
+  const setAuthUser = (authUser, authToken) => {
+    setUser(authUser);
+    if (authToken) {
+      setToken(authToken);
+      persistAuth(authToken, authUser);
+    } else if (token) {
+      persistAuth(token, authUser);
+    }
+  };
+
   const updateUser = (userData) => {
-    setUser((prev) => ({ ...prev, ...userData }));
+    setUser((prev) => {
+      const updated = { ...prev, ...userData };
+      persistAuth(token, updated);
+      return updated;
+    });
   };
 
   const logout = () => {
@@ -98,6 +130,8 @@ export const AuthProvider = ({ children }) => {
         register,
         logout,
         updateUser,
+        setAuthUser,
+        setUser,
         isAuthenticated: !!user,
       }}
     >

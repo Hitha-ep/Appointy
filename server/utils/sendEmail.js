@@ -100,6 +100,9 @@ export const sendEmail = async (options) => {
       tls: {
         rejectUnauthorized: false,
       },
+      connectionTimeout: 4000, // 4s timeout prevents Render port block freeze
+      greetingTimeout: 4000,
+      socketTimeout: 5000,
     });
 
     const mailOptions = {

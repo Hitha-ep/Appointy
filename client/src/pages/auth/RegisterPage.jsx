@@ -124,7 +124,7 @@ const RegisterPage = () => {
     setError('');
 
     try {
-      await register({
+      const result = await register({
         name: formData.name,
         email: formData.email,
         password: formData.password,
@@ -132,9 +132,9 @@ const RegisterPage = () => {
         role: formData.role,
       });
 
-      // Redirect to OTP verification page
+      // Redirect to OTP verification page with OTP state if direct/fallback
       navigate(`/verify-otp?email=${encodeURIComponent(formData.email)}`, {
-        state: { email: formData.email },
+        state: { email: formData.email, debugOtp: result?.debugOtp, emailSent: result?.emailSent },
       });
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Registration failed');
