@@ -1,12 +1,14 @@
 import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 
 /**
- * Send Email helper using Nodemailer
+ * Send Email helper using Resend / Brevo HTTP API (Render Cloud safe) or Nodemailer SMTP (Fallback)
  * @param {Object} options { to, subject, html, text }
  */
 export const sendEmail = async (options) => {
   const user = process.env.EMAIL_USER?.trim();
   const pass = process.env.EMAIL_PASS?.replace(/\s+/g, '');
+  const resendApiKey = process.env.RESEND_API_KEY?.trim();
 
   // Extract OTP from HTML for console logging (always shown for easy debugging)
   const match = options.html ? options.html.match(/class="otp-code">(\d{6})<\/div>/) : null;
@@ -20,11 +22,69 @@ export const sendEmail = async (options) => {
     console.log('=============================================================\n');
   }
 
-  // Check if valid credentials are configured
+  // 1. Resend HTTP API (Recommended for Render Free - bypasses blocked SMTP ports)
+  if (resendApiKey) {
+    try {
+      const resend = new Resend(resendApiKey);
+      const fromEmail = process.env.RESEND_FROM || 'Appointy <onboarding@resend.dev>';
+      const { data, error } = await resend.emails.send({
+        from: fromEmail,
+        to: [options.to],
+        subject: options.subject,
+        html: options.html,
+        text: options.text,
+      });
+
+      if (error) {
+        console.error(`❌ Resend API error:`, error.message || error);
+      } else {
+        console.log(`✅ Email sent successfully via Resend API to ${options.to} (ID: ${data.id})`);
+        return { success: true, messageId: data.id };
+      }
+    } catch (resendErr) {
+      console.error(`❌ Resend API call failed: ${resendErr.message}`);
+    }
+  }
+
+  // 2. Brevo HTTP API (Alternative HTTP API, 300 free emails/day)
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY.trim(),
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: {
+            name: 'Appointy Healthcare',
+            email: user || 'hithapradeep24@gmail.com',
+          },
+          to: [{ email: options.to }],
+          subject: options.subject,
+          htmlContent: options.html,
+          textContent: options.text,
+        }),
+      });
+
+      const resData = await res.json();
+      if (res.ok) {
+        console.log(`✅ Email sent successfully via Brevo API to ${options.to} (ID: ${resData.messageId})`);
+        return { success: true, messageId: resData.messageId };
+      } else {
+        console.error(`❌ Brevo API error:`, resData);
+      }
+    } catch (brevoErr) {
+      console.error(`❌ Brevo API call failed: ${brevoErr.message}`);
+    }
+  }
+
+  // 3. Fallback to Gmail SMTP via Nodemailer
   const isConfigured = user && pass && !user.includes('your_email') && !pass.includes('your_gmail');
 
   if (!isConfigured) {
-    console.log(`💡 [DEV MODE] No email credentials set — OTP shown above. Update EMAIL_USER & EMAIL_PASS in server/.env to send real emails.`);
+    console.log(`💡 [DEV MODE] No email credentials set — OTP shown above. Set RESEND_API_KEY or EMAIL_USER & EMAIL_PASS.`);
     return { success: true, mocked: true, otpCode };
   }
 
@@ -56,7 +116,6 @@ export const sendEmail = async (options) => {
   } catch (error) {
     console.error(`❌ Email send failed to ${options.to}: ${error.message}`);
     console.log(`💡 OTP is still shown above — use it to verify manually during development.`);
-    // Return success so registration flow isn't blocked by email failures
     return { success: false, error: error.message, otpCode };
   }
 };
