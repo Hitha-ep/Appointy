@@ -85,6 +85,14 @@ const generatePaymentEmailTemplate = ({ patientName, doctorName, fee, date, time
 </html>
 `;
 
+// GET /api/payments/key
+export const getRazorpayKey = async (req, res) => {
+  res.json({
+    success: true,
+    key: process.env.RAZORPAY_KEY_ID || '',
+  });
+};
+
 // POST /api/payments/create-order
 export const createOrder = async (req, res, next) => {
   try {

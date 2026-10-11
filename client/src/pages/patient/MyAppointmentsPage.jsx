@@ -124,7 +124,7 @@ const MyAppointmentsPage = () => {
                         className="btn btn-secondary btn-sm"
                         style={{ fontWeight: 600 }}
                       >
-                        💳 Pay ₹{appt.doctor?.consultationFee || 500} (Demo)
+                        💳 Pay ₹{appt.doctor?.consultationFee || 500}
                       </button>
                     )}
                     {appt.status !== 'cancelled' && appt.status !== 'completed' && (
