@@ -4,6 +4,14 @@ import Footer from '../../components/Footer.jsx';
 import LoadingSpinner from '../../components/LoadingSpinner.jsx';
 import { adminService } from '../../services/adminService.js';
 import { formatDate, getStatusBadgeClass } from '../../utils/formatDate.js';
+import {
+  validateName,
+  validateEmail,
+  validatePassword,
+  validatePhone,
+  validateFee,
+  validateExperience,
+} from '../../utils/validation.js';
 
 // Curated high quality doctor avatar presets
 const PRESET_AVATARS = [
@@ -177,6 +185,20 @@ const AdminDashboard = () => {
 
   const handleAddDoctorSubmit = async (e) => {
     e.preventDefault();
+
+    const nameErr = validateName(newDoctor.name);
+    const emailErr = validateEmail(newDoctor.email);
+    const passErr = validatePassword(newDoctor.password);
+    const phoneErr = newDoctor.phone ? validatePhone(newDoctor.phone) : '';
+    const feeErr = validateFee(newDoctor.consultationFee);
+    const expErr = validateExperience(newDoctor.experience);
+
+    const firstError = nameErr || emailErr || passErr || phoneErr || feeErr || expErr;
+    if (firstError) {
+      alert(firstError);
+      return;
+    }
+
     setModalLoading(true);
     try {
       await adminService.addDoctor(newDoctor);
@@ -213,6 +235,18 @@ const AdminDashboard = () => {
 
   const handleEditSubmit = async (e) => {
     e.preventDefault();
+
+    const nameErr = validateName(editForm.name);
+    const phoneErr = editForm.phone ? validatePhone(editForm.phone) : '';
+    const feeErr = validateFee(editForm.consultationFee);
+    const expErr = validateExperience(editForm.experience);
+
+    const firstError = nameErr || phoneErr || feeErr || expErr;
+    if (firstError) {
+      alert(firstError);
+      return;
+    }
+
     setModalLoading(true);
     try {
       const res = await adminService.updateDoctor(editingDoctor._id, editForm);

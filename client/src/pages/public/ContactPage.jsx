@@ -1,13 +1,69 @@
 import React, { useState } from 'react';
 import Navbar from '../../components/Navbar.jsx';
 import Footer from '../../components/Footer.jsx';
+import { validateName, validateEmail, validateRequired } from '../../utils/validation.js';
 
 const ContactPage = () => {
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
 
+  const [touched, setTouched] = useState({
+    name: false,
+    email: false,
+    subject: false,
+    message: false,
+  });
+
+  const [errors, setErrors] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    message: '',
+  });
+
+  const validateField = (field, value) => {
+    switch (field) {
+      case 'name':
+        return validateName(value);
+      case 'email':
+        return validateEmail(value);
+      case 'subject':
+        return validateRequired(value, 'Subject');
+      case 'message':
+        if (!value || !value.trim()) return 'Message is required.';
+        if (value.trim().length < 10) return 'Message must be at least 10 characters.';
+        return '';
+      default:
+        return '';
+    }
+  };
+
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+    setErrors((prev) => ({ ...prev, [field]: validateField(field, form[field]) }));
+  };
+
+  const handleChange = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (touched[field]) {
+      setErrors((prev) => ({ ...prev, [field]: validateField(field, value) }));
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    setTouched({ name: true, email: true, subject: true, message: true });
+
+    const nameErr = validateField('name', form.name);
+    const emailErr = validateField('email', form.email);
+    const subjectErr = validateField('subject', form.subject);
+    const messageErr = validateField('message', form.message);
+
+    setErrors({ name: nameErr, email: emailErr, subject: subjectErr, message: messageErr });
+
+    if (nameErr || emailErr || subjectErr || messageErr) return;
+
     setSubmitted(true);
   };
 
@@ -66,56 +122,84 @@ const ContactPage = () => {
                 <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
                 <h3 style={{ color: '#166534' }}>Thank you!</h3>
                 <p>Your message has been sent successfully. We will get back to you shortly.</p>
-                <button onClick={() => setSubmitted(false)} className="btn btn-outline" style={{ marginTop: '1rem' }}>
+                <button
+                  onClick={() => {
+                    setSubmitted(false);
+                    setForm({ name: '', email: '', subject: '', message: '' });
+                    setTouched({ name: false, email: false, subject: false, message: false });
+                  }}
+                  className="btn btn-outline"
+                  style={{ marginTop: '1rem' }}
+                >
                   Send another message
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit}>
+              <form onSubmit={handleSubmit} noValidate>
+                {/* Full Name */}
                 <div className="form-group">
                   <label className="form-label">Full Name</label>
                   <input
                     type="text"
-                    required
-                    className="form-input"
+                    className={`form-input ${touched.name && errors.name ? 'is-invalid' : touched.name && !errors.name ? 'is-valid' : ''}`}
                     placeholder="Your Name"
                     value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    onChange={(e) => handleChange('name', e.target.value)}
+                    onBlur={() => handleBlur('name')}
                   />
+                  {touched.name && errors.name && (
+                    <span className="form-error-msg">⚠️ {errors.name}</span>
+                  )}
                 </div>
+
+                {/* Email Address */}
                 <div className="form-group">
                   <label className="form-label">Email Address</label>
                   <input
                     type="email"
-                    required
-                    className="form-input"
+                    className={`form-input ${touched.email && errors.email ? 'is-invalid' : touched.email && !errors.email ? 'is-valid' : ''}`}
                     placeholder="you@example.com"
                     value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    onChange={(e) => handleChange('email', e.target.value)}
+                    onBlur={() => handleBlur('email')}
                   />
+                  {touched.email && errors.email && (
+                    <span className="form-error-msg">⚠️ {errors.email}</span>
+                  )}
                 </div>
+
+                {/* Subject */}
                 <div className="form-group">
                   <label className="form-label">Subject</label>
                   <input
                     type="text"
-                    required
-                    className="form-input"
+                    className={`form-input ${touched.subject && errors.subject ? 'is-invalid' : touched.subject && !errors.subject ? 'is-valid' : ''}`}
                     placeholder="How can we help?"
                     value={form.subject}
-                    onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                    onChange={(e) => handleChange('subject', e.target.value)}
+                    onBlur={() => handleBlur('subject')}
                   />
+                  {touched.subject && errors.subject && (
+                    <span className="form-error-msg">⚠️ {errors.subject}</span>
+                  )}
                 </div>
+
+                {/* Message */}
                 <div className="form-group">
                   <label className="form-label">Message</label>
                   <textarea
-                    required
                     rows="4"
-                    className="form-textarea"
+                    className={`form-textarea ${touched.message && errors.message ? 'is-invalid' : touched.message && !errors.message ? 'is-valid' : ''}`}
                     placeholder="Write your message here..."
                     value={form.message}
-                    onChange={(e) => setForm({ ...form, message: e.target.value })}
+                    onChange={(e) => handleChange('message', e.target.value)}
+                    onBlur={() => handleBlur('message')}
                   ></textarea>
+                  {touched.message && errors.message && (
+                    <span className="form-error-msg">⚠️ {errors.message}</span>
+                  )}
                 </div>
+
                 <button type="submit" className="btn btn-primary btn-block">
                   Send Message
                 </button>

@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/public/Home.jsx';
 import DoctorsPage from './pages/public/DoctorsPage.jsx';
@@ -8,6 +8,9 @@ import ContactPage from './pages/public/ContactPage.jsx';
 
 import LoginPage from './pages/auth/LoginPage.jsx';
 import RegisterPage from './pages/auth/RegisterPage.jsx';
+import VerifyOTPPage from './pages/auth/VerifyOTPPage.jsx';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage.jsx';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage.jsx';
 
 import BookAppointmentPage from './pages/patient/BookAppointmentPage.jsx';
 import MyAppointmentsPage from './pages/patient/MyAppointmentsPage.jsx';
@@ -29,6 +32,9 @@ const App = () => {
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/verify-otp" element={<VerifyOTPPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
       {/* Patient Routes */}
       <Route

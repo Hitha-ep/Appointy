@@ -5,13 +5,31 @@ const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('appointy_token'));
+  const [token, setToken] = useState(localStorage.getItem('appointy_token') || localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+
+  const persistAuth = (authToken, authUser) => {
+    if (authToken) {
+      localStorage.setItem('appointy_token', authToken);
+      localStorage.removeItem('token');
+    } else {
+      localStorage.removeItem('appointy_token');
+      localStorage.removeItem('token');
+    }
+
+    if (authUser) {
+      localStorage.setItem('appointy_user', JSON.stringify(authUser));
+      localStorage.setItem('user', JSON.stringify(authUser));
+    } else {
+      localStorage.removeItem('appointy_user');
+      localStorage.removeItem('user');
+    }
+  };
 
   // Load user on mount / token change
   useEffect(() => {
     const loadUser = async () => {
-      const storedToken = localStorage.getItem('appointy_token');
+      const storedToken = localStorage.getItem('appointy_token') || localStorage.getItem('token');
       if (!storedToken) {
         setLoading(false);
         return;
@@ -23,13 +41,14 @@ export const AuthProvider = ({ children }) => {
         if (res.data.success) {
           setUser(res.data.user);
           setToken(storedToken);
+          persistAuth(storedToken, res.data.user);
         } else {
-          localStorage.removeItem('appointy_token');
+          persistAuth(null, null);
           setToken(null);
           setUser(null);
         }
       } catch {
-        localStorage.removeItem('appointy_token');
+        persistAuth(null, null);
         setToken(null);
         setUser(null);
       } finally {
@@ -42,7 +61,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const res = await axios.post('/api/auth/login', { email, password });
     if (res.data.success) {
-      localStorage.setItem('appointy_token', res.data.token);
+      persistAuth(res.data.token, res.data.user);
       setToken(res.data.token);
       setUser(res.data.user);
       return res.data;
@@ -53,9 +72,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (data) => {
     const res = await axios.post('/api/auth/register', data);
     if (res.data.success) {
-      localStorage.setItem('appointy_token', res.data.token);
-      setToken(res.data.token);
-      setUser(res.data.user);
+      persistAuth(null, null);
       return res.data;
     }
     throw new Error(res.data.message || 'Registration failed');
@@ -66,7 +83,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
-    localStorage.removeItem('appointy_token');
+    persistAuth(null, null);
     setToken(null);
     setUser(null);
   };

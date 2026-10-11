@@ -6,6 +6,7 @@ import LoadingSpinner from '../../components/LoadingSpinner.jsx';
 import PaymentModal from '../../components/PaymentModal.jsx';
 import { doctorService } from '../../services/doctorService.js';
 import { appointmentService } from '../../services/appointmentService.js';
+import { validateRequired } from '../../utils/validation.js';
 
 const BookAppointmentPage = () => {
   const { doctorId } = useParams();
@@ -22,6 +23,10 @@ const BookAppointmentPage = () => {
   const [selectedSlot, setSelectedSlot] = useState('');
   const [reason, setReason] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('online');
+
+  // Touched and validation states
+  const [touched, setTouched] = useState({ date: false, slot: false, reason: false });
+  const [fieldErrors, setFieldErrors] = useState({ date: '', slot: '', reason: '' });
 
   // Modal & Slots state
   const [availableSlots, setAvailableSlots] = useState([]);
@@ -47,6 +52,13 @@ const BookAppointmentPage = () => {
     const date = e.target.value;
     setSelectedDate(date);
     setSelectedSlot('');
+    setTouched((prev) => ({ ...prev, date: true, slot: false }));
+    setFieldErrors((prev) => ({
+      ...prev,
+      date: validateRequired(date, 'Appointment date'),
+      slot: 'Please select a time slot.',
+    }));
+
     if (!date) return;
 
     setSlotsLoading(true);
@@ -61,10 +73,46 @@ const BookAppointmentPage = () => {
     }
   };
 
+  const handleSlotSelect = (slot) => {
+    setSelectedSlot(slot);
+    setTouched((prev) => ({ ...prev, slot: true }));
+    setFieldErrors((prev) => ({ ...prev, slot: '' }));
+  };
+
+  const handleReasonChange = (e) => {
+    const val = e.target.value;
+    setReason(val);
+    if (touched.reason) {
+      let err = '';
+      if (!val || !val.trim()) err = 'Reason for appointment is required.';
+      else if (val.trim().length < 5) err = 'Reason must be at least 5 characters.';
+      setFieldErrors((prev) => ({ ...prev, reason: err }));
+    }
+  };
+
+  const handleReasonBlur = () => {
+    setTouched((prev) => ({ ...prev, reason: true }));
+    let err = '';
+    if (!reason || !reason.trim()) err = 'Reason for appointment is required.';
+    else if (reason.trim().length < 5) err = 'Reason must be at least 5 characters.';
+    setFieldErrors((prev) => ({ ...prev, reason: err }));
+  };
+
   const handleBooking = async (e) => {
     e.preventDefault();
-    if (!selectedDate || !selectedSlot) {
-      return setError('Please select a valid date and time slot.');
+
+    setTouched({ date: true, slot: true, reason: true });
+
+    const dateErr = validateRequired(selectedDate, 'Appointment date');
+    const slotErr = validateRequired(selectedSlot, 'Time slot');
+    let reasonErr = '';
+    if (!reason || !reason.trim()) reasonErr = 'Reason for appointment is required.';
+    else if (reason.trim().length < 5) reasonErr = 'Reason must be at least 5 characters.';
+
+    setFieldErrors({ date: dateErr, slot: slotErr, reason: reasonErr });
+
+    if (dateErr || slotErr || reasonErr) {
+      return setError('Please fill in all required fields correctly before booking.');
     }
 
     setBookingLoading(true);
@@ -151,17 +199,20 @@ const BookAppointmentPage = () => {
 
               {error && <div className="alert alert-error">{error}</div>}
 
-              <form onSubmit={handleBooking}>
+              <form onSubmit={handleBooking} noValidate>
+                {/* Date Field */}
                 <div className="form-group">
                   <label className="form-label">Select Date</label>
                   <input
                     type="date"
-                    required
                     min={minDate}
-                    className="form-input"
+                    className={`form-input ${touched.date && fieldErrors.date ? 'is-invalid' : touched.date && !fieldErrors.date ? 'is-valid' : ''}`}
                     value={selectedDate}
                     onChange={handleDateChange}
                   />
+                  {touched.date && fieldErrors.date && (
+                    <span className="form-error-msg">⚠️ {fieldErrors.date}</span>
+                  )}
                   {doctor?.availableDays && (
                     <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.25rem' }}>
                       Available on: {doctor.availableDays.join(', ')}
@@ -169,6 +220,7 @@ const BookAppointmentPage = () => {
                   )}
                 </div>
 
+                {/* Time Slot Selection */}
                 {selectedDate && (
                   <div className="form-group">
                     <label className="form-label">Select Time Slot</label>
@@ -177,33 +229,44 @@ const BookAppointmentPage = () => {
                     ) : availableSlots.length === 0 ? (
                       <p style={{ color: '#ef4444', fontSize: '0.9rem' }}>No slots available for this date. Please pick another day.</p>
                     ) : (
-                      <div className="slot-grid" style={{ marginTop: '0.5rem' }}>
-                        {availableSlots.map((slot) => (
-                          <button
-                            type="button"
-                            key={slot}
-                            className={`slot-btn ${selectedSlot === slot ? 'selected' : ''}`}
-                            onClick={() => setSelectedSlot(slot)}
-                          >
-                            {slot}
-                          </button>
-                        ))}
-                      </div>
+                      <>
+                        <div className="slot-grid" style={{ marginTop: '0.5rem' }}>
+                          {availableSlots.map((slot) => (
+                            <button
+                              type="button"
+                              key={slot}
+                              className={`slot-btn ${selectedSlot === slot ? 'selected' : ''}`}
+                              onClick={() => handleSlotSelect(slot)}
+                            >
+                              {slot}
+                            </button>
+                          ))}
+                        </div>
+                        {touched.slot && fieldErrors.slot && (
+                          <span className="form-error-msg">⚠️ {fieldErrors.slot}</span>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
 
+                {/* Reason / Symptoms */}
                 <div className="form-group">
                   <label className="form-label">Reason / Symptoms</label>
                   <textarea
                     rows="3"
-                    className="form-textarea"
-                    placeholder="Briefly describe your symptoms or reason for visit..."
+                    className={`form-textarea ${touched.reason && fieldErrors.reason ? 'is-invalid' : touched.reason && !fieldErrors.reason ? 'is-valid' : ''}`}
+                    placeholder="Briefly describe your symptoms or reason for visit (min 5 characters)..."
                     value={reason}
-                    onChange={(e) => setReason(e.target.value)}
+                    onChange={handleReasonChange}
+                    onBlur={handleReasonBlur}
                   ></textarea>
+                  {touched.reason && fieldErrors.reason && (
+                    <span className="form-error-msg">⚠️ {fieldErrors.reason}</span>
+                  )}
                 </div>
 
+                {/* Payment Option */}
                 <div className="form-group">
                   <label className="form-label">Payment Option</label>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -237,7 +300,7 @@ const BookAppointmentPage = () => {
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    disabled={bookingLoading || !selectedDate || !selectedSlot}
+                    disabled={bookingLoading || !selectedDate || !selectedSlot || !reason}
                     style={{ flex: 2 }}
                   >
                     {bookingLoading ? 'Confirming...' : `Confirm Booking (₹${doctor?.consultationFee || 0})`}
