@@ -23,6 +23,8 @@ export const registerUser = async (req, res, next) => {
       });
     }
 
+    const assignedRole = role === 'doctor' ? 'doctor' : 'patient';
+
     let user = await User.findOne({ email });
 
     if (user) {
